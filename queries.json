@@ -1,0 +1,453 @@
+# Aggregations
+GET movie/_search
+{
+  "aggs": {
+    "actors": {
+      "nested": {
+        "path": "actors"
+      },
+      "aggs": {
+        "actors": {
+          "terms": {
+            "field": "actors.name",
+            "size": 10
+          },
+          "aggs": {
+            "actor_to_movie": {
+              "reverse_nested": {},
+              "aggs": {
+                "movie_gender": {
+                  "terms": {
+                    "field": "category",
+                    "size": 10
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "query": {
+    "match_all": {}
+  },
+  "size": 0
+}
+
+GET movie/_search
+{
+  "aggs": {
+    "actors": {
+      "nested": {
+        "path": "actors"
+      },
+      "aggs": {
+        "actors": {
+          "terms": {
+            "field": "actors.name",
+            "size": 10
+          }
+        }
+      }
+    }
+  },
+  "query": {
+    "match_all": {}
+  },
+  "size": 0
+}
+
+PUT movie/movie/3
+{
+  "title": "Heat",
+  "category": [
+    "Crime",
+    "Drama",
+    "Thriller"
+  ],
+  "actors": [
+    {
+      "name": "Al Pacino",
+      "awards": [
+        "Oscar",
+        "Golden Globe"
+      ]
+    },
+    {
+      "name": "Robert De Niro",
+      "awards": [
+        "Oscar",
+        "Golden Globe"
+      ]
+    }
+  ]
+}
+
+PUT movie/movie/2
+{
+  "title": "Scarface",
+  "category": [
+    "Crime",
+    "Drama"
+  ],
+  "actors": [
+    {
+      "name": "Al Pacino",
+      "awards": [
+        "Oscar",
+        "Golden Globe"
+      ]
+    },
+    {
+      "name": "Michelle Pfeiffer",
+      "awards": [
+        "Golden Globe"
+      ]
+    }
+  ]
+}
+
+PUT movie/movie/1
+{
+  "title": "The Godfather",
+  "category": [
+    "Crime",
+    "Drama"
+  ],
+  "actors": [
+    {
+      "name": "Al Pacino",
+      "awards": [
+        "Oscar",
+        "Golden Globe"
+      ]
+    },
+    {
+      "name": "Marlon Brando",
+      "awards": [
+        "Oscar",
+        "Golden Globe"
+      ]
+    }
+  ]
+}
+
+PUT movie
+{
+  "mappings": {
+    "movie": {
+      "properties": {
+        "title": {
+          "type": "text"
+        },
+        "category": {
+          "type": "keyword"
+        },
+        "actors": {
+          "type": "nested",
+          "properties": {
+            "name": {
+              "type": "keyword"
+            },
+            "awards": {
+              "type": "keyword"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+DELETE movie
+
+GET resource/_search
+{
+  "aggs": {
+    "views_histo": {
+      "histogram": {
+        "field": "view_count",
+        "interval": 100000
+      }
+    },
+    "views_per_month_stats": {
+      "stats": {
+        "field": "views_per_month"
+      }
+    },
+    "video_grades": {
+      "filter": {
+        "term": {
+          "media_type": "Video"
+        }
+      },
+      "aggs": {
+        "grade": {
+          "terms": {
+            "field": "grades"
+          }
+        }
+      }
+    }
+  },
+  "query": {
+    "match_all": {}
+  },
+  "size": 0
+}
+
+#Scoring
+GET resource/_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "sort": [
+    {
+      "available_from_date": {
+        "order": "desc"
+      }
+    }
+  ],
+  "_source": [
+    "title",
+    "available_from_date"
+  ]
+}
+
+GET resource/_search?explain
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "title": "Daniel Tiger"
+          }
+        },
+        {
+          "function_score": {
+            "functions": [
+              {
+                "field_value_factor": {
+                  "field": "views_per_month",
+                  "modifier": "none",
+                  "factor": 0.2
+                },
+                "weight": 0.2
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "_source": [
+    "title",
+    "long_description"
+  ]
+}
+
+GET resource/_search?explain
+{
+  "query": {
+    "multi_match": {
+      "query": "Daniel Tiger",
+      "fields": [
+        "title^2",
+        "long_description"
+      ]
+    }
+  },
+  "_source": [
+    "title",
+    "long_description"
+  ]
+}
+
+# Compound query
+GET resource/_search?explain
+{
+  "query": {
+    "bool": {
+      "minimum_should_match": 1,
+      "should": [
+        {
+          "term": {
+            "media_type": "Video"
+          }
+        },
+        {
+          "term": {
+            "media_type": "Image"
+          }
+        }
+      ],
+      "must": [
+        {
+          "match_phrase": {
+            "title": "Daniel Tiger"
+          }
+        }
+      ],
+      "filter": [
+        {
+          "range": {
+            "available_from_date": {
+              "lte": "now/d"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "_source": [
+    "title",
+    "long_description"
+  ]
+}
+
+# Full text
+GET resource/_search?explain
+{
+  "query": {
+    "query_string": {
+      "query": "title:Daniel and long_description:Tiger"
+    }
+  },
+  "_source": [
+    "title",
+    "long_description"
+  ]
+}
+
+GET resource/_search?explain
+{
+  "query": {
+    "multi_match": {
+      "query": "Daniel Tiger",
+      "type": "phrase",
+      "fields": [
+        "title",
+        "long_description"
+      ]
+    }
+  },
+  "_source": [
+    "title",
+    "long_description"
+  ]
+}
+
+GET resource/_search?explain
+{
+  "query": {
+    "multi_match": {
+      "query": "Daniel Tiger",
+      "fields": [
+        "title",
+        "long_description"
+      ]
+    }
+  },
+  "_source": [
+    "title",
+    "long_description"
+  ]
+}
+
+GET resource/_search?explain
+{
+  "query": {
+    "match_phrase": {
+      "long_description": {
+        "query": "Daniel Tiger restaurant",
+        "slop": 20
+      }
+    }
+  },
+  "_source": [
+    "title",
+    "long_description"
+  ]
+}
+
+GET resource/_search?explain
+{
+  "query": {
+    "match_phrase": {
+      "title": "Daniel Tiger"
+    }
+  },
+  "_source": [
+    "title",
+    "long_description"
+  ]
+}
+
+GET resource/_search?explain
+{
+  "query": {
+    "match": {
+      "title": "Tiger"
+    }
+  },
+  "_source": [
+    "title",
+    "long_description"
+  ]
+}
+
+# Terms example
+GET resource/_search
+{
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "range": {
+            "available_from_date": {
+              "lte": "now/d"
+            }
+          }
+        },
+        {
+          "term": {
+            "media_type": "Video"
+          }
+        },
+        {
+          "terms": {
+            "language": [
+              "English",
+              "Spanish"
+            ]
+          }
+        }
+      ],
+      "must": [
+        {
+          "match_all": {}
+        }
+      ]
+    }
+  },
+  "_source": [
+    "title",
+    "language",
+    "media_type"
+  ]
+}
+
+# All
+GET resource/_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "_source": [
+    "title",
+    "language",
+    "media_type"
+  ]
+}
